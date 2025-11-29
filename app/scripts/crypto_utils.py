@@ -4,7 +4,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 
-PRIVATE_KEY_PATH = Path("student_private.pem")
+PRIVATE_KEY_PATH = Path("app/scripts/student_private.pem")
 
 
 def load_private_key():

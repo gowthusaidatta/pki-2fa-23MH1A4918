@@ -4,12 +4,12 @@ import requests
 API_URL = "https://eajeyq4r3zljoq4rpovy2nthda0vtjqf.lambda-url.ap-south-1.on.aws/"
 
 STUDENT_ID = "23MH1A4918"
-GITHUB_REPO_URL = "https://github.com/gowthusaidatta/pki-2fa-23MH1A4918"
-
+GITHUB_REPO_URL = "https://raw.githubusercontent.com/gowthusaidatta/pki-2fa-23MH1A4918/main/student_public.pem"
 
 def load_public_key():
     with open("student_public.pem", "r") as f:
         return f.read()
+
 
 
 def request_encrypted_seed():
