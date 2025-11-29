@@ -1,46 +1,43 @@
-import base64
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import serialization, hashes
+﻿import base64
+from pathlib import Path
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
 
-# --------------------------
-# DECRYPT SEED (AES-CBC)
-# --------------------------
-
-def decrypt_seed(enc_b64: str) -> bytes:
-    cipher_bytes = base64.b64decode(enc_b64)
-
-    key = b"MYSUPERSECRETKEY123"[:16]    # MUST match your AES key used during encryption
-    iv = cipher_bytes[:16]
-    encrypted = cipher_bytes[16:]
-
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
-    decryptor = cipher.decryptor()
-    padded = decryptor.update(encrypted) + decryptor.finalize()
-
-    pad_len = padded[-1]
-    seed_bytes = padded[:-pad_len]
-    return seed_bytes
+PRIVATE_KEY_PATH = Path("student_private.pem")
 
 
-# --------------------------
-# LOAD PRIVATE KEY
-# --------------------------
+def load_private_key():
+    """Load student's RSA private key"""
+    if not PRIVATE_KEY_PATH.exists():
+        raise FileNotFoundError(f"Private key not found: {PRIVATE_KEY_PATH}")
 
-with open("app/private_key.pem", "rb") as f:
-    private_key = serialization.load_pem_private_key(
-        f.read(),
-        password=None
-    )
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        return serialization.load_pem_private_key(key_file.read(), password=None)
 
-# --------------------------
-# SIGN MESSAGE (RSA)
-# --------------------------
 
-def sign_message(message: str) -> str:
-    signature = private_key.sign(
-        message.encode(),
-        padding.PKCS1v15(),
-        hashes.SHA256()
-    )
-    return base64.b64encode(signature).decode()
+def decrypt_seed(encrypted_seed: str) -> str:
+    """Decrypts Base64-encoded RSA encrypted seed"""
+    try:
+        private_key = load_private_key()
+
+        encrypted_bytes = base64.b64decode(encrypted_seed)
+
+        decrypted_bytes = private_key.decrypt(
+            encrypted_bytes,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+
+        seed = decrypted_bytes.decode()
+
+        if len(seed) != 32 or not all(c in "0123456789abcdef" for c in seed.lower()):
+            raise ValueError("Invalid seed format")
+
+        return seed
+
+    except Exception as e:
+        raise ValueError(f"Decryption failed: {e}")
