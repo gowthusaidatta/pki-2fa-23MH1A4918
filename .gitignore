@@ -1,0 +1,13 @@
+# Keep encrypted_seed local
+encrypted_seed.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+
+# Local env
+.env

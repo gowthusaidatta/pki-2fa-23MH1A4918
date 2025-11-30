@@ -1,28 +1,39 @@
-﻿import base64
+﻿# app/scripts/crypto_utils.py
+import base64
+import os
 from pathlib import Path
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes
 
-PRIVATE_KEY_PATH = Path("app/scripts/student_private.pem")
+# Accept several likely paths so Docker vs. local works
+CANDIDATE_PRIVATE_PATHS = [
+    Path("/app/student_private.pem"),           # docker recommended path
+    Path("/app/scripts/student_private.pem"),
+    Path("student_private.pem"),
+    Path("app/scripts/student_private.pem"),
+    Path("app/student_private.pem"),
+]
 
+def find_private_key_path():
+    for p in CANDIDATE_PRIVATE_PATHS:
+        if p.exists():
+            return p
+    raise FileNotFoundError("student_private.pem not found in expected locations.")
 
 def load_private_key():
-    """Load student's RSA private key"""
-    if not PRIVATE_KEY_PATH.exists():
-        raise FileNotFoundError(f"Private key not found: {PRIVATE_KEY_PATH}")
-
-    with open(PRIVATE_KEY_PATH, "rb") as key_file:
-        return serialization.load_pem_private_key(key_file.read(), password=None)
-
+    key_path = find_private_key_path()
+    with open(key_path, "rb") as f:
+        return serialization.load_pem_private_key(f.read(), password=None)
 
 def decrypt_seed(encrypted_seed: str) -> str:
-    """Decrypts Base64-encoded RSA encrypted seed"""
+    """
+    Decrypt Base64 RSA-OAEP(SHA256) encrypted seed and validate format.
+    Returns 64-char hex string.
+    Raises ValueError on failure.
+    """
     try:
         private_key = load_private_key()
-
         encrypted_bytes = base64.b64decode(encrypted_seed)
-
         decrypted_bytes = private_key.decrypt(
             encrypted_bytes,
             padding.OAEP(
@@ -31,13 +42,16 @@ def decrypt_seed(encrypted_seed: str) -> str:
                 label=None,
             ),
         )
+        seed = decrypted_bytes.decode("utf-8").strip()
 
-        seed = decrypted_bytes.decode()
-
-        if len(seed) != 32 or not all(c in "0123456789abcdef" for c in seed.lower()):
-            raise ValueError("Invalid seed format")
+        # Validation: 64 hex characters
+        if len(seed) != 64:
+            raise ValueError(f"Invalid seed length: {len(seed)} (expected 64)")
+        if not all(c in "0123456789abcdef" for c in seed.lower()):
+            raise ValueError("Seed contains non-hex characters")
 
         return seed
 
-    except Exception as e:
-        raise ValueError(f"Decryption failed: {e}")
+    except Exception as exc:
+        # raise ValueError to be caught by main and converted to 500
+        raise ValueError(f"Decryption failed: {exc}")
